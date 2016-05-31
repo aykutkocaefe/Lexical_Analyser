@@ -1,420 +1,386 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdio.h>
-#include <ctype.h>
 #include <string.h>
-int charClass=0;
-char lexeme [100];
-char nextChar=0;
-char previousChar=0;
-int previousCharClass=0;
-int lexLen;
-int token;
-int nextToken;
-long int location;
-char string[100];
-int sayac=0;//for print operator control
-int count=0;//for read operator conrol
-int unknown=99;
-int error=0;
 
-FILE *in_fp, *fopen();
-void addChar();
-void getChar();
-void getNonBlank();
-int lex();
-#define LETTER -4
-#define DIGIT -2
-#define UNKNOWN -3
-#define INT_LIT 0
-#define IDENT 1
-#define ASSIGN_OP 2
-#define ADD_OP 3
-#define SUB_OP 4
-#define MULT_OP 5
-#define DIV_OP 6
-#define LEFT_PAREN 7
-#define RIGHT_PAREN 8
-#define COMMA 9
-#define PRINT_OP 10
-#define APOSTROPHE 11
-#define STRING 12
-#define READ_OP 13
-#define KEYWORD 14
-#define LESS_THAN_OP 15
-#define PERIOD 16
-#define INITIAL_VALUE 17
-#define INITIAL_VALUE_LEFT_OP 18
-#define INITIAL_VALUE_RIGHT_OP 19
-#define FLOAT_CONSTANT 20
-#define COMMENT 21
-#define GREATER_AND_EQUAL_THAN_OP 22
-#define EXPONENT 23
-
-char* tokens[]= {"EOF","INT_LIT","IDENT","ASSIGN_OP","ADD_OP","SUB_OP",
-                 "MULT_OP","DIV_OP","LEFT_PAREN","RIGHT_PAREN","COMMA","PRINT_OP","APOSTROPHE"
-                 ,"STRING","READ_OP","KEYWORD","LESS_THAN_OP","PERIOD or FULL_STOP","INITIAL_VALUE",
-                 "INITIAL_VALUE_LEFT_OP","INITIAL_VALUE_RIGHT_OP","FLOAT_CONSTANT","COMMENT","GREATER_AND_EQUAL_THAN_OP","EXPONENT"
-                };
-char* keywords[]= {"PROGRAM","EXTERNAL","COMMON","PRINT","READ","CALL","END","END IF","SUBROUTINE","DATA","IF","INTEGER","THEN","DO","REAL","CONTINUE","STOP","DOUBLE","PRECISION","FUNCTION","ELSE","RETURN"};
+int isReservedWord(char *);
+int isAdvMathFunc(char *);
+int isOrdinalFunc(char *);
+int isVariableType(char *);
+int isBoolOperator(char *);
+int isFileHandlingFunc(char *);
+void skip_string(FILE *,FILE *);
+void comment(FILE *,char,FILE *);
+int isLetter(char);
+int isNumeric(char);
+void constant(FILE *,FILE *,char);
 
 int main()
 {
+    FILE *pascal_file,*lex_file;
+    char file_name[40], file_name2[40];
+    char is_token[40];
+    char current_char;
+    char before_current_char;
+    int i=0,j,is_comment=0,is_assignment=0;
+    printf("Please enter the source file name: ");
+    fflush(stdin);
+    gets(file_name);
+    strcpy(file_name2,file_name);
+    strcat(file_name,".pas");
+    strcat(file_name2,".lex");
 
-    char file_name[20];
-    printf("Enter the name of code will lexel:");
-    scanf("%s",file_name);
-    strcat(file_name,".txt");
-    if ((in_fp = fopen(file_name, "r")) == NULL)
-        printf("ERROR - cannot open %s \n",file_name);
+
+    for(j=0;j<40;j++)
+        is_token[j]=0;
+    if((pascal_file = fopen(file_name,"r")) == NULL)
+        printf("dosya acilamadi!\n");
     else
     {
-        getChar();
+        lex_file = fopen(file_name2,"w");
+        while(!feof(pascal_file))
+        {
+
+            current_char=getc(pascal_file);
+            if(isLetter(current_char)==1)//current_char harfse string e eklenir
+            {
+                is_token[i]=current_char;
+                i++;
+            }
+            else if(isLetter(current_char)==0 && i!=0)// current char harf degilse ondan onceki stringi(is_letter) yazdýr
+            {
+                if(strcmp("writeln",is_token)==0 || strcmp("write",is_token)==0)
+                {
+                    fputs("output(",lex_file);
+                    fputs(is_token,lex_file);
+                    fputs("),",lex_file);
+                }
+                else if(strcmp("readln",is_token)==0 || strcmp("read",is_token)==0)
+                {
+                    fputs("input(",lex_file);
+                    fputs(is_token,lex_file);
+                    fputs("),",lex_file);
+                }
+                else if(isReservedWord(is_token)==1)
+                {
+                    fputs("reservedWord(",lex_file);
+                    fputs(is_token,lex_file);
+                    fputs("),",lex_file);
+                }
+                else if(isAdvMathFunc(is_token)==1)
+                {
+                    fputs("advancedMathFunction(",lex_file);
+                    fputs(is_token,lex_file);
+                    fputs("),",lex_file);
+                }
+                else if(isOrdinalFunc(is_token)==1)
+                {
+                    fputs("ordinalFunction(",lex_file);
+                    fputs(is_token,lex_file);
+                    fputs("),",lex_file);
+                }
+                else if(isVariableType(is_token)==1)
+                {
+                    fputs("variableType(",lex_file);
+                    fputs(is_token,lex_file);
+                    fputs("),",lex_file);
+                }
+                else if(isBoolOperator(is_token)==1)
+                {
+                    fputs("booleanOperator(",lex_file);
+                    fputs(is_token,lex_file);
+                    fputs("),",lex_file);
+                }
+                else if(isFileHandlingFunc(is_token)==1)
+                {
+                    fputs("fileHandlingFunction(",lex_file);
+                    fputs(is_token,lex_file);
+                    fputs("),",lex_file);
+                }
+                else if(strcmp(is_token,"div")==0 || strcmp(is_token,"mod")==0)
+                {
+                    fputs("arithmeticOperation(",lex_file);
+                    fputs(is_token,lex_file);
+                    fputs("),",lex_file);
+                }
+                else
+                {
+                    fputs("variable(",lex_file);
+                    fputs(is_token,lex_file);
+                    fputs("),",lex_file);
+                }
+                i=0;
+                for(j=0;j<40;j++)
+                    is_token[j]=0;
+            }
+
+            if(current_char==':')
+            {
+                current_char=getc(pascal_file);
+                if(current_char=='=')
+                {
+                    fputs("assignmentOperator(:=),",lex_file);
+                    is_assignment=1;
+                }
+                else
+                {
+                    fputs("colon(:),",lex_file);
+                    ungetc(current_char,pascal_file);
+                }
+            }
+
+
+            if(current_char=='{')
+            {
+                comment(pascal_file,current_char,lex_file);
+            }
+
+
+            if(current_char=='*' && is_comment==1)
+            {
+                comment(pascal_file,current_char,lex_file);
+                is_comment=0;
+            }
+            if(is_comment==1)
+            {
+                fputs("leftParentheses((),",lex_file);
+            }
+            if(current_char==')')
+            {
+                fputs("rightParentheses()),",lex_file);
+            }
+            if(current_char==';')
+            {
+                fputs("endOfLine(;),",lex_file);
+            }
+            if(current_char=='[')
+            {
+                fputs("openingBracket([)",lex_file);
+            }
+            if(current_char==']')
+            {
+                fputs("closingBracket(])",lex_file);
+            }
+
+
+
+           if(is_assignment==0 && (current_char=='<' || current_char=='>' || current_char=='='))
+            {
+                before_current_char=current_char;
+                current_char=getc(pascal_file);
+                if(before_current_char=='<' && (current_char=='=' || current_char=='>'))
+                {
+                    fputs("compOperator(",lex_file);
+                    fputc(before_current_char,lex_file);
+                    fputc(current_char,lex_file);
+                    fputs("),",lex_file);
+                }
+                else if(before_current_char=='>' && current_char=='=')
+                {
+                    fputs("compOperator(",lex_file);
+                    fputc(before_current_char,lex_file);
+                    fputc(current_char,lex_file);
+                    fputs("),",lex_file);
+                }
+                else if(before_current_char=='<' || before_current_char=='>' || before_current_char=='=')
+                {
+                    fputs("compOperator(",lex_file);
+                    fputc(before_current_char,lex_file);
+                    fputs("),",lex_file);
+                    ungetc(current_char,pascal_file);
+                }
+
+            }
+            is_assignment=0;
+
+
+
+
+            if(current_char=='+' || current_char =='-' || current_char=='*' || current_char=='/')
+            {
+                fputs("arithOperator(",lex_file);
+                fputc(current_char,lex_file);
+                fputs("),",lex_file);
+            }
+
+            is_comment=0;
+            if(current_char=='(')
+            {
+                is_comment=1;
+            }
+            if(current_char==39)
+            {
+                skip_string(pascal_file,lex_file);
+            }
+
+            if(current_char==9 || current_char==10 || current_char==' ')
+            {
+                fputc(current_char,lex_file);
+            }
+            /*if(current_char==';')
+            {
+
+                i=0;
+                for(j=0;j<40;j++)
+                    is_token[j]='\0';
+            }*/
+            if(isNumeric(current_char)==1)
+            {
+                constant(pascal_file,lex_file,current_char);
+            }
+
+        }
+        fclose(lex_file);
+        lex_file = fopen(file_name2,"r");
+        current_char=getc(lex_file);
+        while(!feof(lex_file))
+        {
+            printf("%c",current_char);
+            current_char=getc(lex_file);
+        }
+    }
+
+    return 0;
+}
+
+int isReservedWord(char *str)
+{
+    if(strcmp("asm",str)==0 || strcmp("array",str)==0 || strcmp("begin",str)==0 ||
+       strcmp("case",str)==0 || strcmp("const",str)==0 || strcmp("constructor",str)==0 ||
+       strcmp("destructor",str)==0 || strcmp("do",str)==0 || strcmp("downto",str)==0 ||
+       strcmp("else",str)==0 || strcmp("end",str)==0 || strcmp("exports",str)==0 ||
+       strcmp("file",str)==0 || strcmp("for",str)==0 || strcmp("function",str)==0 ||
+       strcmp("goto",str)==0 || strcmp("if",str)==0 || strcmp("implementation",str)==0 ||
+       strcmp("in",str)==0 || strcmp("inherited",str)==0 || strcmp("inline",str)==0 ||
+       strcmp("interface",str)==0 || strcmp("label",str)==0 || strcmp("library",str)==0 ||
+       strcmp("nil",str)==0 || strcmp("object",str)==0 || strcmp("of",str)==0 ||
+       strcmp("packed",str)==0 || strcmp("procedure",str)==0 || strcmp("program",str)==0 ||
+       strcmp("record",str)==0 || strcmp("repeat",str)==0 || strcmp("set",str)==0 ||
+       strcmp("shl",str)==0 || strcmp("shr",str)==0 || strcmp("then",str)==0 ||
+       strcmp("to",str)==0 || strcmp("type",str)==0 || strcmp("unit",str)==0 ||
+       strcmp("until",str)==0 || strcmp("uses",str)==0 || strcmp("var",str)==0 ||
+       strcmp("while",str)==0 || strcmp("with",str)==0 ){return 1;}
+    return 0;
+}
+int isAdvMathFunc(char *str)
+{
+    if(strcmp("sin",str)==0 || strcmp("cos",str)==0 || strcmp("arctan",str)==0 ||
+       strcmp("exp",str)==0 || strcmp("ln",str)==0 || strcmp("sqr",str)==0 ||
+       strcmp("sqrt",str)==0 || strcmp("round",str)==0 || strcmp("trunc",str)==0 ||
+       strcmp("abs",str)==0){return 1;}
+    return 0;
+}
+int isOrdinalFunc(char *str)
+{
+    if(strcmp("chr",str)==0 || strcmp("ord",str)==0 || strcmp("pred",str)==0 ||
+       strcmp("succ",str)==0){return 1;}
+    return 0;
+}
+int isVariableType(char *str)
+{
+    if(strcmp("integer",str)==0 || strcmp("longint",str)==0 || strcmp("read",str)==0 ||
+       strcmp("char",str)==0 || strcmp("string",str)==0 || strcmp("boolean",str)==0){return 1;}
+    return 0;
+}
+int isBoolOperator(char *str)
+{
+    if(strcmp("and",str)==0 || strcmp("not",str)==0 || strcmp("or",str)==0 ||
+       strcmp("xor",str)==0){return 1;}
+    return 0;
+}
+int isFileHandlingFunc(char *str)
+{
+    if(strcmp("assign",str)==0 || strcmp("close",str)==0 || strcmp("reset",str)==0 ||
+       strcmp("rewrite",str)==0 || strcmp("append",str)==0 || strcmp("eof",str)==0 ||
+       strcmp("eoln",str)==0){return 1;}
+    return 0;
+}
+
+void skip_string(FILE *pascal_file,FILE *lex_file)
+{
+    char current_char;
+    do
+    {
+        current_char = getc(pascal_file);
+    }while(current_char!=39);
+    fputs("apostrophe('),:string:,apostrophe('),",lex_file);
+}
+void comment(FILE *pascal_file,char current_char,FILE *lex_file)// comment ise sadece :comment: yazilip arasi atlanir.
+{
+    int is_asterisk;
+    if(current_char=='{')
+    {
+        fputs("comment({),:comment:,comment(}),",lex_file);
         do
         {
-            lex();
-        }
-        while (nextToken != EOF);
-    }
-}
-int lookup(char ch)
-{
-    int i=0;
-    int flag=0;
-    int found=0;
-    char temp;
-    switch (ch)
-    {
-    case '(':
-        addChar();
-        nextToken = LEFT_PAREN;
-        break;
-    case ')':
-        addChar();
-        nextToken = RIGHT_PAREN;
-        break;
-    case '+':
-        addChar();
-        nextToken = ADD_OP;
-
-        break;
-    case '-':
-        addChar();
-        nextToken = SUB_OP;
-        break;
-    case '*':
-        location = ftell(in_fp);
-        addChar();
-        getChar();
-        if(nextChar==',')
-        {
-            getChar();
-            getNonBlank();
-            if(nextChar=='\'')
-            {
-                do
-                {
-                    getChar();
-                }
-                while(nextChar!='\'');
-                nextToken = PRINT_OP;
-                fseek(in_fp,location,SEEK_SET);
-            }
-            else if(nextChar=='*')
-            {
-                nextToken=READ_OP;
-                fseek(in_fp,location,SEEK_SET);
-                count++;
-            }
-            else
-            {
-                fseek(in_fp,location,SEEK_SET);
-                nextToken = PRINT_OP;
-            }
-
-
-        }
-        else if(count%2!=0)
-        {
-            nextToken=READ_OP;
-            fseek(in_fp,location,SEEK_SET);
-        }
-        else if(nextChar=='*')
-        {
-            addChar();
-            nextToken=EXPONENT;
-        }
-        else
-        {
-            nextToken = MULT_OP;
-            fseek(in_fp,location,SEEK_SET);
-        }
-
-        break;
-    case '/':
-        addChar();
-        location=ftell(in_fp);
-        getChar();
-        while(nextChar!='\n')
-        {
-            getChar();
-            if(nextChar=='/')
-                found=1;
-        }
-        if(found==1)
-        {
-            fseek(in_fp,location,SEEK_SET);
-            nextToken=INITIAL_VALUE_LEFT_OP;
-            i=0;
-            getChar();
-            while(nextChar!='/')
-            {
-                string[i++]=nextChar;
-                string[i]=0;
-                getChar();
-            }
-
-        }
-        else
-        {
-            fseek(in_fp,location,SEEK_SET);
-            nextToken=DIV_OP;
-        }
-        break;
-    case ',':
-        addChar();
-        nextToken = COMMA;
-        break;
-    case '=':
-        addChar();
-        nextToken = ASSIGN_OP;
-        location=ftell(in_fp);
-        temp=previousCharClass;
-        getChar();
-        if(previousCharClass==LETTER&&charClass!=LETTER||previousCharClass==DIGIT&&charClass!=DIGIT)
-            printf("Assignment error detected!");
-        fseek(in_fp,location,SEEK_SET);
-        break;
-    case '\'':
-        addChar();
-        location=ftell(in_fp);
-        sayac++;
-        if(sayac%2!=0)
-        {
-            while(nextChar!='\n')
-            {
-                getChar();
-                if(nextChar=='\'')
-                    flag=1;
-            }
-            if(flag!=1)
-            {
-                printf("Error; expected one more (') character!\n");
-                sayac--;
-                error=1;
-            }
-            else
-            {
-                fseek(in_fp,location,SEEK_SET);
-                location=ftell(in_fp);
-                do
-                {
-                    getChar();
-                    if(nextChar!='\'')
-                    {
-                        string[i++]=nextChar;
-                        string[i]=0;
-                    }
-                }
-                while(nextChar!='\'');
-                fseek(in_fp,location,SEEK_SET);
-                error=0;
-            }
-        }
-        nextToken=APOSTROPHE;
-        break;
-    case '.':
-        location=ftell(in_fp);
-        addChar();
-        getChar();
-        if(nextChar=='L')
-        {
-            addChar();
-            getChar();
-            addChar();
-            if(nextChar=='T')
-            {
-                getChar();
-                addChar();
-                if(nextChar=='.')
-                    nextToken=LESS_THAN_OP;
-            }
-            else fseek(in_fp,location,SEEK_SET);
-        }
-        else if(nextChar=='G')
-        {
-            addChar();
-            getChar();
-            addChar();
-            if(nextChar=='E')
-            {
-                getChar();
-                addChar();
-                if(nextChar=='.')
-                    nextToken=GREATER_AND_EQUAL_THAN_OP;
-            }
-            else fseek(in_fp,location,SEEK_SET);
-        }
-        else
-        {
-            fseek(in_fp,location,SEEK_SET);
-            nextToken=PERIOD;
-        }
-        break;
-    default:
-        addChar();
-        printf("Error; unknown character: %s\n",lexeme);
-        nextToken=unknown;
-        if(nextChar==EOF)
-            nextToken = EOF;
-        break;
-    }
-    return nextToken;
-}
-void addChar()
-{
-    lexeme[lexLen++] = nextChar;
-    lexeme[lexLen] = 0;
-}
-void getChar()
-{
-    previousChar=nextChar;
-    previousCharClass=charClass;
-    if ((nextChar = getc(in_fp)) != EOF)
-    {
-        if (isalpha(nextChar)||nextChar=='_')
-            charClass = LETTER;
-        else if (isdigit(nextChar))
-            charClass = DIGIT;
-        else charClass = UNKNOWN;
+            current_char=getc(pascal_file);
+        }while(current_char!='}');
     }
     else
-        charClass = EOF;
-}
-void getNonBlank()
-{
-    while (isspace(nextChar))
-        getChar();
-}
-int lex()
-{
-    int i,j=3;
-    char end_if[3];//end if situtation
-    int bulundu=0;
-    lexLen = 0;
-    getNonBlank();
-    switch (charClass)
     {
-    case LETTER:
-        addChar();
-        if (nextChar=='C'&&previousChar=='\n')
+        fputs("comment((*),:comment:,comment(*)),",lex_file);
+        do
         {
-            while(nextChar!='\n')
+            current_char=getc(pascal_file);
+            is_asterisk=0;
+            if(current_char=='*')
             {
-                getChar();
+                current_char=getc(pascal_file);
+                is_asterisk=1;
             }
-            nextToken=COMMENT;
-        }
-        else
-        {
-            getChar();
-            while (charClass == LETTER || charClass == DIGIT)
-            {
-                addChar();
-                if(strcmp(lexeme,keywords[6])==0)//end if situtation
-                {
-                    location=ftell(in_fp);
-                    for(i=0; i<3; i++)
-                    {
-                        getChar();
-                        end_if[i]=nextChar;
-                    }
-                    if(nextChar!='F')
-                    {
-                        fseek(in_fp,location,SEEK_SET);
-                    }
-                    else
-                    {
-                        i=0;
-                        for(i=0; i<3; i++)
-                        {
-                            lexeme[j]=end_if[i];
-                            j++;
-                        }
-                        lexeme[j]=0;
-                    }
-                }
-
-                getChar();
-            }
-            if(nextToken!=COMMENT)
-                nextToken = IDENT;
-            for(i=0; i<22; i++)
-            {
-                if(strcmp(lexeme,keywords[i])==0)
-                    nextToken=KEYWORD;
-            }
-            if(nextToken==IDENT&&lexLen>31)
-                printf("Error - lexeme is too long: %s\n",lexeme);
-        }
-        break;
-    case DIGIT:
-        addChar();
-        getChar();
-        while (charClass == DIGIT || nextChar=='.' || charClass==LETTER)
-        {
-            if(nextChar=='.')
-                bulundu=1;
-            addChar();
-            getChar();
-        }
-        if(bulundu==1)
-        {
-            nextToken=FLOAT_CONSTANT;
-        }
-        else
-        {
-            nextToken = INT_LIT;
-        }
-        break;
-    case UNKNOWN:
-        lookup(nextChar);
-        getChar();
-        break;
-    case EOF:
-        nextToken = EOF;
-        lexeme[0] = 'E';
-        lexeme[1] = 'O';
-        lexeme[2] = 'F';
-        lexeme[3] = 0;
-        break;
+        }while(current_char!=')' && is_asterisk!=1);
     }
-    if(nextToken!=unknown)
+}
+int isLetter(char current_char)
+{
+    if((current_char<='z' && current_char>='a') || (current_char<='Z' && current_char>='A'))
     {
-        if(nextToken==APOSTROPHE&&sayac%2==0&&error==0)
-            printf("Next token is: %-25s, Next lexeme is %s\n",
-                   tokens[STRING+1],string );
-        printf("Next token is: %-25s, Next lexeme is %-15s\n",
-               tokens[nextToken+1], lexeme);
-        if(nextToken==INITIAL_VALUE_LEFT_OP)
-        {
-            printf("Next token is: %-25s, Next lexeme is %s\n",
-                   tokens[INITIAL_VALUE+1],string );
-            printf("Next token is: %-25s, Next lexeme is %-15c\n",
-                   tokens[20],'/');
-        }
-
+        return 1;
     }
+    return 0;
+}
+int isNumeric(char current_char)
+{
+    if(current_char>='0' && current_char<='9')
+    {
+        return 1;
+    }
+    return 0;
+}
+void constant(FILE *pascal_file,FILE *lex_file,char current_char)
+{
+    char constant_number[40];
+    int i=1,j,is_float=0;
 
-    return nextToken;
+    for(j=0;j<40;j++)
+        constant_number[j]=0;
+
+    constant_number[0]=current_char;
+    do
+    {
+        current_char=getc(pascal_file);
+        constant_number[i]=current_char;
+        i++;
+        if(current_char=='.')
+        {
+            is_float++;
+        }
+    }
+    while((isNumeric(current_char)==1 || current_char=='.')&& is_float<=1 );//max 1 '.'
+    constant_number[i-1]=0;
+
+    if(is_float==0)
+    {
+        fputs("intConstant(",lex_file);
+    }
+    else if(is_float>=1)
+    {
+        fputs("doubleConstant(",lex_file);
+    }
+    fputs(constant_number,lex_file);
+    fputs("),",lex_file);
+    if(is_float==2)
+    {
+        fputs("dot(.)",lex_file);
+    }
+    ungetc(current_char,pascal_file);
 }
